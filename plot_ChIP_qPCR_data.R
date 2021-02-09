@@ -86,18 +86,21 @@ WellData$well_ID = num_to_well(WellData$well_ID, plate = 384)
 # remove "NA" samples
 WellData = na.omit(WellData)
 
+# remove specific row, is necessary sometimes
+#  i hate how the qpcr machine exports the results. it is different every time!
+# additional outlier filtering
+data = filter(data, data[1] == "True")
 # data
 #remove not needed colums; they usually contain error messages
 data = data[,3:6]
 # get rid of not cp column
-data[4] = NULL
-# remove specific row, is necessary sometimes
-#  i hate how the qpcr machine exports the results. it is different every time!
-data = data[-c(9),]
+data[3] = NULL
 # rename columns of interest in data
 colnames(data) = c("well_ID", "sample", "cp")
 # write samples into data
 data$sample = WellData$sample
+# make sure that data$cp is numeric. sometimes this is not the case
+data$cp = as.numeric(data$cp)
 
 ##################################################
 # data analysis
@@ -110,7 +113,7 @@ data$sample = WellData$sample
 # exclude data that is to close to detection limit of 40, hence above threshold
 data = filter(data, data$cp < 39)
 # exclude data with cp = 0
-#data = filter(data, data$cp > 0)
+data = filter(data, data$cp > 0)
 # remove ddh2o samples
 data = data[- grep ("ddh2o", data$sample, ignore.case = TRUE),]
 
@@ -139,6 +142,11 @@ data$sample_name = sub(".*?_","", data$sample)
 ########################################
 # calc % input
 ########################################
+
+#additional filtering
+# additional outlier filtering
+#remove = c("7")
+#data = data[!row.names(data)%in%remove,]
 
 # split data into IP and IN data frames
 IP_data = filter(data, data$identity == "IP")
@@ -201,7 +209,7 @@ ggplot(results, aes(fill = primer, x = sample_name, y = percentage_input)) +
   geom_bar(position="dodge", stat="Identity") +
   geom_errorbar(aes(ymin=percentage_input-sd, ymax = percentage_input+sd), width=.2, position=position_dodge(.9))+
   #  geom_text(aes(label=percentage_input), vjust= -0.5, size = 2) +
-  #ylim(0,10) +
+  ylim(0,0.075) +
   #  scale_y_continuous(trans = 'log2') +
   #  labs(y = "IP/input") +
   theme_classic() +

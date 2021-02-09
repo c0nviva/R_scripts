@@ -79,9 +79,12 @@ colnames(PlateLayout) = c(1:12)
 # data preparation
 ##################################################
 
+########################################
+# optional: filter data
+########################################
 # remove datasets/rows that are below threshold e.g. c3mean (=IF channel)
 #data = filter(data, data$c3mean >600)
-#data = filter(data, data$c3mean <1000)
+data = filter(data, data$c3mean >1000)
 
 ########################################
 # write filenumber into added column
@@ -272,7 +275,7 @@ FigMeanInt3
 # boxplot: Median Foci count per ROI per treatment
 ########################################
 
-FigFociCount <-   plot_ly(data = data, x = ~treatment, y = ~c2mean,
+FigFociCount <-   plot_ly(data = data, x = ~treatment, y = ~c2foci,
                           type = "box", boxpoints="outliers", jitter = 1, pointpos = 0, notched = TRUE,
                           marker = list(color = "gray", opacity = 1, size = 3),
                           color= ~subtreatment,
@@ -308,6 +311,8 @@ sp
 ##################################################
 
 # save data as csv
+# export only certain data
+#data = filter(data, data$treatment == "oriP_mock" | data$treatment == "oriP_K246" )
 #write.table(data, "res.csv", sep=",", col.names = NA)
 
 
