@@ -21,7 +21,7 @@ INfactor = 10
 }
 
 # list of packages you want to install/use
-packages = c("ggplot2", "dplyr", "platetools")
+packages = c("ggplot2", "dplyr", "platetools", "plotly")
 
 # install and load packages
 .ipak(packages)
@@ -109,6 +109,8 @@ data$cp = as.numeric(data$cp)
 ########################################
 # filters
 ########################################
+# save rawdata
+rawdata = data
 
 # exclude data that is to close to detection limit of 40, hence above threshold
 data = filter(data, data$cp < 39)
@@ -145,7 +147,10 @@ data$sample_name = sub(".*?_","", data$sample)
 
 #additional filtering
 # additional outlier filtering
-#remove = c("7")
+#remove = c("B8", "C7", "E6", "E9", "B13", "E12", "B19", "D20" )
+# new methopd easier. just plot cp per well_ID and color code for IN or IP
+data = data[!data$well_ID %in% remove,]
+# old method using rows.
 #data = data[!row.names(data)%in%remove,]
 
 # split data into IP and IN data frames
@@ -204,12 +209,36 @@ ggplot(data, aes(fill = identity, x = sample_name, y = cp)) +
     axis.ticks.x = element_blank()
   )
 
+# plot plate layout
+# convert well_ID into xy coordinates split in two columns
+# for unfiltered data, set x= rawdata
+x = rawdata
+x <- mutate(x,
+                   Row=as.numeric(match(toupper(substr(well_ID, 1, 1)), LETTERS)),
+                   Column=as.numeric(substr(well_ID, 2, 5)))
+
+# draw 96 well plate as a heatmap indicating cell count per well
+#threshold can be used to identify wells with low cell count more easily
+threshold = 0
+FigPlateRoiCount <-  plot_ly(data = x, x = ~Column, y = ~Row*-1, z = ~cp,
+                             type = "heatmap",
+                             zmin = threshold,
+                             zmax = 40,
+                             colors = c("orange","blue"),
+                             text = ~cp, hoverinfo = "text", hovertext= paste("well:",x$well_ID,"<br>sample:",x$sample,"<br>cp:",x$cp), hoverlabel = list(bgcolor="white")
+) %>%
+  layout(#title = paste("Wells containing", threshold,"or less cells appear white"),
+    xaxis = list(ticks="", showline = TRUE,side= "top", showgrid = FALSE, title = "", autotick = FALSE, mirror = "ticks", range = c(0.5,24.5)),
+    yaxis = list(ticks="", tickmode="array", ticktext=LETTERS[1:17],tickvals=c(-1:-17), showline = TRUE, showgrid = FALSE, title = "", autorange = "FALSE", mirror = "ticks", range = c(-16.5,-0.5))
+  )
+FigPlateRoiCount
+
 # plot percentage input
-ggplot(results, aes(fill = primer, x = sample_name, y = percentage_input)) +
+ggplot(results, aes(fill = primer, x = treatment, y = percentage_input)) +
   geom_bar(position="dodge", stat="Identity") +
   geom_errorbar(aes(ymin=percentage_input-sd, ymax = percentage_input+sd), width=.2, position=position_dodge(.9))+
   #  geom_text(aes(label=percentage_input), vjust= -0.5, size = 2) +
-  ylim(0,0.075) +
+  ylim(0,0.1) +
   #  scale_y_continuous(trans = 'log2') +
   #  labs(y = "IP/input") +
   theme_classic() +

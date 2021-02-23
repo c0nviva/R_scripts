@@ -3,7 +3,7 @@
 ##################################################
 
 # define variable: PicturesPerWell
-PicturesPerWell = 64
+PicturesPerWell = 57
 
 ##################################################
 # install packages
@@ -83,8 +83,8 @@ colnames(PlateLayout) = c(1:12)
 # optional: filter data
 ########################################
 # remove datasets/rows that are below threshold e.g. c3mean (=IF channel)
-#data = filter(data, data$c3mean >600)
-data = filter(data, data$c3mean >1000)
+#data = filter(data, data$c1mean >1000)
+#data = filter(data, data$c3mean >800)
 
 ########################################
 # write filenumber into added column
@@ -175,7 +175,7 @@ FigPlateRoiCount <-  plot_ly(data = WellData, x = ~Column, y = ~Row*-1, z = ~roi
                               type = "heatmap",
                               zmin = threshold,
                               zmax = max(WellData$roi_count),
-                              colors = c("white","orange"),
+                              colors = c("yellow","orange"),
                               text = ~roi_count, hoverinfo = "text", hovertext= paste("well:",WellData$well_ID,"<br>treatment:",WellData$treatment,"<br>roi_count:",WellData$roi_count), hoverlabel = list(bgcolor="white")
                       ) %>%
                       layout(#title = paste("Wells containing", threshold,"or less cells appear white"),
@@ -241,10 +241,10 @@ FigFrameInfo
 # scatter: 
 ########################################
 # the bigger the ROI/cell the more foci and what about signal intensity?
-FigC <-   plot_ly(data = data, x = ~c2mean, y = ~c2foci,
+FigC <-   plot_ly(data = data, x = ~c2mean, y = ~c3mean,
                   type = "scatter", mode = "markers",
                   color = ~treatment,
-                  hoverinfo = "text", hovertext= paste("well:",data$well_ID,"<br>filename:",data$File,"<br>c2mean:",data$c2mean, "<br>ROI number:",data$ROI), hoverlabel = list(bgcolor="white")
+                  hoverinfo = "text", hovertext= paste("well:",data$well_ID,"<br>filename:",data$File, "<br>ROI number:",data$ROI, "<br>c2foci:",data$c2foci), hoverlabel = list(bgcolor="white")
           ) %>%
           layout(showlegend = TRUE,
                  yaxis = list(showline = TRUE)
@@ -258,7 +258,7 @@ FigC
 
 # median intensity per ROI per well
 FigMeanInt3 <-    plot_ly(data = data, x = ~treatment, y = ~c3mean,
-                          type = "box", boxpoints="outlier", jitter = 1, pointpos = 0, notched = TRUE,
+                          type = "box", boxpoints="all", jitter = 1, pointpos = 0, notched = TRUE,
                           marker = list(color = "gray", opacity = 1, size = 3),
                           color= ~subtreatment,
                           showlegend = FALSE, 
@@ -276,7 +276,7 @@ FigMeanInt3
 ########################################
 
 FigFociCount <-   plot_ly(data = data, x = ~treatment, y = ~c2foci,
-                          type = "box", boxpoints="outliers", jitter = 1, pointpos = 0, notched = TRUE,
+                          type = "box", boxpoints="all", jitter = 1, pointpos = 0, notched = TRUE,
                           marker = list(color = "gray", opacity = 1, size = 3),
                           color= ~subtreatment,
                           showlegend = FALSE,
