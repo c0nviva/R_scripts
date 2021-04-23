@@ -125,7 +125,7 @@ ggplot(data, aes(V3, V10)) +
 #  coord_trans(y="pseudo_log")+
 #  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x),labels = trans_format("log10", math_format(10^.x))) + 
   labs(y = "Target/Ref") +
-  scale_y_continuous(limits = c(0,NA),expand = expansion(mult = c(0, 0.1))) +
+#  scale_y_continuous(limits = c(0,25),expand = expansion(mult = c(0, 0.1))) +
 #  annotation_logticks(base=10, sides="l", scaled = TRUE, size = 1)+
   facet_wrap( ~ V4,scales = "free") + 
   theme_mt()+

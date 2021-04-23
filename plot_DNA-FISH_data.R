@@ -3,7 +3,7 @@
 ##################################################
 
 # define variable: PicturesPerWell
-PicturesPerWell = 57
+PicturesPerWell = 25
 
 ##################################################
 # install packages
@@ -83,8 +83,9 @@ colnames(PlateLayout) = c(1:12)
 # optional: filter data
 ########################################
 # remove datasets/rows that are below threshold e.g. c3mean (=IF channel)
-#data = filter(data, data$c1mean >1000)
-#data = filter(data, data$c3mean >800)
+data = filter(data, data$c1mean >1000)
+#data = filter(data, data$c2mean >550)
+#data = filter(data, data$c3mean 
 
 ########################################
 # write filenumber into added column
@@ -156,7 +157,12 @@ WellData$subtreatment = sub("_.*","", WellData$treatment)
 ##################################################
 # construct figures
 ##################################################
-# needed for keeping same x-order in al figures
+# filter for certain samples
+#select = c("K069_stock", "K034_stock" )
+# new methopd easier. just plot cp per well_ID and color code for IN or IP
+#data = data[data$treatment %in% select,]
+
+# needed for keeping same x-order in all figures
 xform <- list(categoryorder = "array",
               categoryarray = data$treatment)
 
@@ -175,7 +181,7 @@ FigPlateRoiCount <-  plot_ly(data = WellData, x = ~Column, y = ~Row*-1, z = ~roi
                               type = "heatmap",
                               zmin = threshold,
                               zmax = max(WellData$roi_count),
-                              colors = c("yellow","orange"),
+                              colors = c("white","orange"),
                               text = ~roi_count, hoverinfo = "text", hovertext= paste("well:",WellData$well_ID,"<br>treatment:",WellData$treatment,"<br>roi_count:",WellData$roi_count), hoverlabel = list(bgcolor="white")
                       ) %>%
                       layout(#title = paste("Wells containing", threshold,"or less cells appear white"),
@@ -241,10 +247,15 @@ FigFrameInfo
 # scatter: 
 ########################################
 # the bigger the ROI/cell the more foci and what about signal intensity?
-FigC <-   plot_ly(data = data, x = ~c2mean, y = ~c3mean,
+FigC <-   plot_ly(data = data, x = ~c3mean, y = ~c3foci,
                   type = "scatter", mode = "markers",
                   color = ~treatment,
-                  hoverinfo = "text", hovertext= paste("well:",data$well_ID,"<br>filename:",data$File, "<br>ROI number:",data$ROI, "<br>c2foci:",data$c2foci), hoverlabel = list(bgcolor="white")
+                  hoverinfo = "text", 
+                  hovertext= paste("well:",data$well_ID,
+                                   "<br>filename:",data$File, 
+                                   "<br>ROI number:",data$ROI, 
+                                   "<br>c2foci:",data$c2foci), 
+                  hoverlabel = list(bgcolor="white")
           ) %>%
           layout(showlegend = TRUE,
                  yaxis = list(showline = TRUE)
@@ -258,11 +269,11 @@ FigC
 
 # median intensity per ROI per well
 FigMeanInt3 <-    plot_ly(data = data, x = ~treatment, y = ~c3mean,
-                          type = "box", boxpoints="all", jitter = 1, pointpos = 0, notched = TRUE,
+                          type = "box", boxpoints="outlier", jitter = 1, pointpos = 0, notched = TRUE,
                           marker = list(color = "gray", opacity = 1, size = 3),
                           color= ~subtreatment,
                           showlegend = FALSE, 
-                          hoverinfo = "text", hovertext= paste("well:",data$well_ID,"<br>filename:",data$File,"<br>c3mean:",data$c3mean, "<br>ROI number:",data$ROI), hoverlabel = list(bgcolor="white")
+                          hoverinfo = "text", hovertext= paste("well:",data$well_ID,"<br>filename:",data$File,"<br>c3foci:",data$c3foci, "<br>ROI number:",data$ROI), hoverlabel = list(bgcolor="white")
                   ) %>%
                   layout(#title = "Channel 2",
                           xaxis = list(tickangle = -45, showgrid = FALSE, title = ""),
@@ -275,12 +286,12 @@ FigMeanInt3
 # boxplot: Median Foci count per ROI per treatment
 ########################################
 
-FigFociCount <-   plot_ly(data = data, x = ~treatment, y = ~c2foci,
-                          type = "box", boxpoints="all", jitter = 1, pointpos = 0, notched = TRUE,
+FigFociCount <-   plot_ly(data = data, x = ~treatment, y = ~c2mean,
+                          type = "box", boxpoints="outlier", jitter = 1, pointpos = 0, notched = TRUE,
                           marker = list(color = "gray", opacity = 1, size = 3),
                           color= ~subtreatment,
                           showlegend = FALSE,
-                          hoverinfo = "text", hovertext= paste("well:",data$well_ID,"<br>filename:",data$File,"<br>c2foci:",data$c2foci, "<br>ROI number:",data$ROI), hoverlabel = list(bgcolor="white")
+                          hoverinfo = "text", hovertext= paste("well:",data$well_ID,"<br>filename:",data$File,"<br>c3foci:",data$c3foci, "<br>ROI number:",data$ROI), hoverlabel = list(bgcolor="white")
                 ) %>%
                 layout(xaxis = list(tickangle = -45, showgrid = FALSE, title = ""),
                           yaxis = list(#title = "Foci per ROI", 
@@ -315,4 +326,13 @@ sp
 #data = filter(data, data$treatment == "oriP_mock" | data$treatment == "oriP_K246" )
 #write.table(data, "res.csv", sep=",", col.names = NA)
 
+
+##################################################
+# additional analysis
+##################################################
+
+plot_ly(data= data,
+        x = ~c3foci,
+        type = "histogram",
+        color = ~treatment)
 

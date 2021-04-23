@@ -1,12 +1,10 @@
 ##################################################
-# plot ChIP-qPCR data
+# primer efficiency curve ChIP-qPCR data
 ##################################################
-# according to this analysis:
-# https://www.thermofisher.com/de/de/home/life-science/epigenetics-noncoding-rna-research/chromatin-remodeling/chromatin-immunoprecipitation-chip/chip-analysis.html
+# according to : https://toptipbio.com/calculate-primer-efficiencies/
 
-# percentage of input
-# e.g if you have taken 10 % as input: enter 10
-INfactor = 10
+# Dilution factor
+DilFactor = 5
 
 ##################################################
 # install packages
@@ -21,7 +19,7 @@ INfactor = 10
 }
 
 # list of packages you want to install/use
-packages = c("ggplot2", "dplyr", "platetools", "plotly")
+packages = c("ggplot2", "dplyr", "platetools", "plotly", "stringr")
 
 # install and load packages
 .ipak(packages)
@@ -119,103 +117,60 @@ data = filter(data, data$cp > 0)
 # remove ddh2o samples
 data = data[- grep ("ddh2o", data$sample, ignore.case = TRUE),]
 
+# remove wells / remove outliers
+# therefore look at plate layout plot to identify them
+# write into list of well identifiers:
+remove = c("B7", "G12", "L10")
+# then remove them from the data 
+data = data[!data$well_ID %in% remove,]
+
+########################################
+# calculate means
+########################################
+# calculate mean of technical replicates per primer and dilution
+data = data %>%
+  group_by(sample) %>%
+  summarise(cpmean = mean(cp, na.rm = TRUE), cpsd = sd(cp)) 
+  
+
 ########################################
 # extract sample information
 ########################################
-# get unique sample descriptions
+# get primer and dilution information
 # usually technical triplicates per sample description
-# name: IP_primer_treatment
+# name: primer_dilution
 
-# extract IP and input samples
-data$identity = gsub("_.*","",data$sample)
-# extract targets/primer pairs and write into new column
-# remove everything before first "_"
-data$primer = sub(".*?_", "", data$sample)
-# remove everything after first "_"
-data$primer = sub("_.*", "", data$primer)
-# extract treatment and write into a new column
-data$treatment = gsub(".*_", "", data$sample)
+# split string of data$sample column and write into strv
+strv = str_split_fixed(data$sample,"_",2)
+# then write primer name into primer column
+data$primer = strv[,1]
+# and dilution identifier into dilution column
+data$dilution = strv[,2]
+# make sure dilution is numeric
+data$dilution = as.numeric(data$dilution)
 
-# remove IP or IN and write into new column sample_name
-data$sample_name = sub(".*?_","", data$sample)
-#data$sample_name = sub(".*?_","", data$sample_name)
-#data$sample_name = sub("_.*","", data$sample_name)
+# convert dilution identifier into dilution factor, using DilFactor
+data$dilution = 1/(DilFactor^data$dilution)
 
-########################################
-# calc % input
-########################################
+# log10 transformation of dilution column
+data$dilloq = log(data$dilution,10)
 
-#additional filtering
-# additional outlier filtering
-remove = c("A11")
-# new methopd easier. just plot cp per well_ID and color code for IN or IP
-data = data[!data$well_ID %in% remove,]
-# old method using rows.
-#data = data[!row.names(data)%in%remove,]
+# plot standard curves:
+ggplot(data=data, aes(x = dilloq, y = cpmean, group = primer, color = primer))+
+  geom_line()+
+  geom_point()+
+  geom_errorbar(aes(min=cpmean-cpsd, max=cpmean+cpsd), width = 0.1)+
+  #xlim(-4.5,NA)+
+  theme_classic()
 
-# split data into IP and IN data frames
-IP_data = filter(data, data$identity == "IP")
-IN_data = filter(data, data$identity == "IN")
-
-# adjusted input
-IN_data$cp_adj = IN_data$cp - log(100/INfactor, 2)
-
-# create results data frame
-results = IP_data[,c("sample", "sample_name", "primer", "treatment")]
-
-# calculate delta_cp only for sample that are present in IP_data
-# sometimes IN data is filtered out
-for( i in IP_data$sample_name) {
-  IP = IP_data[IP_data$sample_name == i,]
-  IN = IN_data[IN_data$sample_name == i,]
-  
-  # subtract each IP value from each IN value, all combinations
-  delta_data = expand.grid(IN$cp_adj,IP$cp)
-  # calculate delta_cp
-  delta_data[3] = delta_data[1]-delta_data[2]
-  colnames(delta_data) = c("IN","IP","delta_cp")
-  
-  for (j in 1: length(delta_data$delta_cp)){
-    
-    # extract delta_cp
-    delta_cp = delta_data$delta_cp[j]
-    
-    # calculate percentage_input
-    percentage_input = 100 * 2^delta_cp
-    
-    #write into new column
-    delta_data$percentage_input[j] = percentage_input
-  }
-  # get mean and std
-  mean = mean(delta_data$percentage_input)
-  sd = sd(delta_data$percentage_input)
-  
-  # write into results
-  results$percentage_input[results$sample_name == i] = mean
-  results$sd[results$sample_name == i] = sd
-}
-
-##################################################
-# plot qPCR data
-##################################################
-
-# plot raw cp values IN vs IP
-ggplot(data, aes(fill = identity, x = sample_name, y = cp)) +
-  geom_bar(position="dodge", stat="Identity") +
-  theme_classic() +
-  theme(
-    axis.text.x= element_text(angle = 45,hjust = 1),
-    axis.title.x=element_blank(),
-    axis.ticks.x = element_blank()
-  )
 
 # plot plate layout
 # convert well_ID into xy coordinates split in two columns
 # for unfiltered data, set x= rawdata
 x = rawdata
 x <- mutate(x,
-                   Row=as.numeric(match(toupper(substr(well_ID, 1, 1)), LETTERS)),
-                   Column=as.numeric(substr(well_ID, 2, 5)))
+            Row=as.numeric(match(toupper(substr(well_ID, 1, 1)), LETTERS)),
+            Column=as.numeric(substr(well_ID, 2, 5)))
 
 # draw 96 well plate as a heatmap indicating cell count per well
 #threshold can be used to identify wells with low cell count more easily
@@ -232,27 +187,6 @@ FigPlateRoiCount <-  plot_ly(data = x, x = ~Column, y = ~Row*-1, z = ~cp,
     yaxis = list(ticks="", tickmode="array", ticktext=LETTERS[1:17],tickvals=c(-1:-17), showline = TRUE, showgrid = FALSE, title = "", autorange = "FALSE", mirror = "ticks", range = c(-16.5,-0.5))
   )
 FigPlateRoiCount
-
-# plot percentage input
-ggplot(results, aes(fill = primer, x = treatment, y = percentage_input)) +
-  geom_bar(position="dodge", stat="Identity") +
-  geom_errorbar(aes(ymin=percentage_input-sd, ymax = percentage_input+sd), width=.2, position=position_dodge(.9))+
-  #  geom_text(aes(label=percentage_input), vjust= -0.5, size = 2) +
-  #ylim(-0.001,0.4) +
-  #  scale_y_continuous(trans = 'log2') +
-  #  labs(y = "IP/input") +
-  theme_classic() +
-  theme(
-    axis.text.x= element_text(angle = 45,hjust = 1),
-    axis.title.x=element_blank(),
-    axis.ticks.x = element_blank()
-  )
-
-# save figure in working directory
-#ggsave(paste(filename,"",".png",sep=""))
-#write.table(results, "res.csv", sep=",", col.names = NA)
-
-
 
 
 
