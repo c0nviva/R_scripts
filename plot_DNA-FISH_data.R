@@ -3,7 +3,7 @@
 ##################################################
 
 # define variable: PicturesPerWell
-PicturesPerWell = 25
+PicturesPerWell = 45
 
 ##################################################
 # install packages
@@ -200,7 +200,7 @@ FigRoiCountBar <-      plot_ly(data = WellData, x = ~well_ID, y = ~roi_count,
                             showlegend = FALSE
 ) %>%
                           layout(#title = "Channel 2",
-                            xaxis = list(tickangle = -45, showgrid = FALSE, title = ""),
+                            xaxis = list(tickangle = -90, showgrid = FALSE, title = ""),
                             yaxis = list(#title = "Average ROI intensity", 
                             showline = TRUE)
   )
@@ -237,7 +237,7 @@ FigFrameInfo <-    plot_ly(data = WellFrameInfo, x = ~treatment, y = ~ROI_count_
                           hoverinfo = "text", hovertext= paste("<br>filename:",WellFrameInfo$File, "<br>ROI count:",WellFrameInfo$ROI_count), hoverlabel = list(bgcolor="white")
 ) %>%
   layout(#title = "Channel 2",
-    xaxis = list(tickangle = -45, showgrid = FALSE, title = ""),
+    xaxis = list(tickangle = -90, showgrid = FALSE, title = ""),
     yaxis = list(#title = "Average ROI intensity", 
       showline = TRUE)
   )
@@ -276,7 +276,7 @@ FigMeanInt3 <-    plot_ly(data = data, x = ~treatment, y = ~c3mean,
                           hoverinfo = "text", hovertext= paste("well:",data$well_ID,"<br>filename:",data$File,"<br>c3foci:",data$c3foci, "<br>ROI number:",data$ROI), hoverlabel = list(bgcolor="white")
                   ) %>%
                   layout(#title = "Channel 2",
-                          xaxis = list(tickangle = -45, showgrid = FALSE, title = ""),
+                          xaxis = list(tickangle = -90, showgrid = FALSE, title = ""),
                           yaxis = list(#title = "Average ROI intensity", 
                           showline = TRUE)
                   )
@@ -293,7 +293,7 @@ FigFociCount <-   plot_ly(data = data, x = ~treatment, y = ~c2mean,
                           showlegend = FALSE,
                           hoverinfo = "text", hovertext= paste("well:",data$well_ID,"<br>filename:",data$File,"<br>c3foci:",data$c3foci, "<br>ROI number:",data$ROI), hoverlabel = list(bgcolor="white")
                 ) %>%
-                layout(xaxis = list(tickangle = -45, showgrid = FALSE, title = ""),
+                layout(xaxis = list(tickangle = -90, showgrid = FALSE, title = ""),
                           yaxis = list(#title = "Foci per ROI", 
                           showline = TRUE)
                   )   

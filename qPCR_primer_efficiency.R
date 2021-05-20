@@ -120,7 +120,7 @@ data = data[- grep ("ddh2o", data$sample, ignore.case = TRUE),]
 # remove wells / remove outliers
 # therefore look at plate layout plot to identify them
 # write into list of well identifiers:
-remove = c("B7", "G12", "L10")
+remove = c("D11", "A14", "E13", "B18")
 # then remove them from the data 
 data = data[!data$well_ID %in% remove,]
 
@@ -129,8 +129,8 @@ data = data[!data$well_ID %in% remove,]
 ########################################
 # calculate mean of technical replicates per primer and dilution
 data = data %>%
-  group_by(sample) %>%
-  summarise(cpmean = mean(cp, na.rm = TRUE), cpsd = sd(cp)) 
+      group_by(sample) %>%
+      summarise(cpmean = mean(cp, na.rm = TRUE), cpsd = sd(cp)) 
   
 
 ########################################
@@ -154,6 +154,26 @@ data$dilution = 1/(DilFactor^data$dilution)
 
 # log10 transformation of dilution column
 data$dilloq = log(data$dilution,10)
+
+# remove data above certain dilution step:
+data = data[!data$dilloq <= -3,]
+
+# calc slope for each primer pair
+primerlist = unique(data$primer)
+results = data.frame(primerlist, primerlist, primerlist)
+colnames(results)= c("primer", "slope", "eff")
+
+for (p in primerlist) {
+  fit = lm(cpmean ~ dilloq, data = data, subset = data$primer == p)
+  slope = as.numeric(fit$coefficients[[2]])
+  results[results$primer == p,"slope"] = round(slope, 2)
+  eff = as.numeric((10^(-1/slope)-1)*100,2)
+  eff =  round(eff,2)
+  results[results$primer == p,"eff"] = eff
+}
+
+results$slope = as.numeric(results$slope)
+results$eff = as.numeric(results$eff)
 
 # plot standard curves:
 ggplot(data=data, aes(x = dilloq, y = cpmean, group = primer, color = primer))+
@@ -188,5 +208,16 @@ FigPlateRoiCount <-  plot_ly(data = x, x = ~Column, y = ~Row*-1, z = ~cp,
   )
 FigPlateRoiCount
 
+
+# plot efficiency value per primer
+ggplot(results, aes(primer, eff))+
+  geom_bar(stat="identity")+
+  geom_text(aes(label = eff),
+            vjust = -0.5,
+            size = 5) +
+  theme_classic()
+
+# write results
+#write.table(results, "res.csv", sep=",", col.names = NA)
 
 

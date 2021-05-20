@@ -129,11 +129,12 @@ ggplot(data, aes(V3, V10)) +
 #  annotation_logticks(base=10, sides="l", scaled = TRUE, size = 1)+
   facet_wrap( ~ V4,scales = "free") + 
   theme_mt()+
+  #ylim(-0.001,500)+
   theme(axis.text.x=element_text(angle=45,hjust=1),
         legend.position="NONE",
         axis.title.x=element_blank(),
         axis.ticks.x = element_blank()
-  )+
+  )
   scale_fill_brewer(palette="Spectral")
   
 # View data

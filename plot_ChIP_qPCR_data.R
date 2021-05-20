@@ -147,7 +147,7 @@ data$sample_name = sub(".*?_","", data$sample)
 
 #additional filtering
 # additional outlier filtering
-remove = c("A11")
+remove = c("J17", "J5", "J1", "J13", "I3", "I18", "K15", "B15", "B17", "G20", "C14", "E4", "E19")
 # new methopd easier. just plot cp per well_ID and color code for IN or IP
 data = data[!data$well_ID %in% remove,]
 # old method using rows.
@@ -234,11 +234,11 @@ FigPlateRoiCount <-  plot_ly(data = x, x = ~Column, y = ~Row*-1, z = ~cp,
 FigPlateRoiCount
 
 # plot percentage input
-ggplot(results, aes(fill = primer, x = treatment, y = percentage_input)) +
+ggplot(results, aes(fill = treatment, x = primer, y = percentage_input)) +
   geom_bar(position="dodge", stat="Identity") +
   geom_errorbar(aes(ymin=percentage_input-sd, ymax = percentage_input+sd), width=.2, position=position_dodge(.9))+
   #  geom_text(aes(label=percentage_input), vjust= -0.5, size = 2) +
-  #ylim(-0.001,0.4) +
+  ylim(-0.001,0.5) +
   #  scale_y_continuous(trans = 'log2') +
   #  labs(y = "IP/input") +
   theme_classic() +

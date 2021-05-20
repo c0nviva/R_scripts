@@ -4,6 +4,7 @@
 # Screen was done by Magdalena Engl
 # Data was pre-sorted by Andreas Ettinger
 # Channel order: PolII, DNA, EdU
+# Data set contains 3x3 plates (triplicates); DNA damage library; EdU positive only; EdU data not present
 
 ##################################################
 # install packages
@@ -18,7 +19,7 @@
 }
 
 # list of packages you want to install/use
-packages = c("ggplot2", "dplyr", "platetools", "plotly")
+packages = c("ggplot2", "dplyr", "platetools", "plotly", "gridExtra", "scales")
 
 # install and load packages
 .ipak(packages)
@@ -38,169 +39,166 @@ theme_set(theme_classic())
 ##################################################
 # setwd and file paths; read in files
 ##################################################
-
 # set working directory
-setwd("C:/Users/Manuel/Documents/PhD/lab_book_supplemental/20210312_ME_coloc_screen")
-# get Wworking directory
-WorkDir = getwd()
+WorkDir = "C:/Users/Manuel/Documents/PhD/lab_book_supplemental/20210312_ME_coloc_screen"
+setwd(WorkDir)
 
-# set path to results file
-# my analysis:
-filepathdata = "results.txt"
+# set path to result file
+
 # magdalena's data:
 filepathdataME = "results-with-treatment-and-replicate-nr.csv"
-
-data = read.table(filepathdata,
-                  quote = "",
-                  sep = ",",
-                  header = TRUE)
 
 dataME = read.table(filepathdataME,
                     quote = "",
                     sep = ",",
                     header = TRUE)
+
 ##################################################
 # data preparation
 ##################################################
-
-########################################
-# optional: filter data
-########################################
-# remove datasets/rows that are below threshold e.g. c3mean (=IF channel)
-# This is needed because results-file is created by python script which does not include this filter, yet
-#data = filter(data, data$c2mean >1000)
-#data = filter(data, data$c3mean >560)
-#data = filter(data, data$c3mean >700)
-########################################
-
-
-# Extract experimentID, plateID, wellID and fieldID from filename
-strParts = strsplit(data$File, "-")
-# Access first item of each element in list strParts, then truncate string if needed
-# then append to data as new column
-data$experimentID = gsub("_.*", "", lapply(strParts, `[[`, 1))
-data$plateID = gsub(".*_", "", lapply(strParts, `[[`, 1))
-data$wellID = lapply(strParts, `[[`, 2)
-data$fieldID = lapply(strParts, `[[`, 3)
+# replace Gene ID with Gene symbol
+# non ENTREZID will result in NA value
+dataME$temp = mapIds(org.Hs.eg.db, keys = dataME$treatment, column = 'SYMBOL', keytype = 'ENTREZID')
+# replace NA value with old non ENTREZID entry
+dataME$temp[is.na(dataME$temp)] = dataME$treatment[is.na(dataME$temp)]
+# replace treatment column with temp column
+dataME$treatment = dataME$temp
+# finally remove temp column
+dataME$temp = NULL
 
 # reorganize data in list, use plateID as sub-category
 plateIDnames = unique(dataME$plateID)
 # initialize datalist
-datalist = list()
+platelist = list()
 # Fill list
 for (item in plateIDnames) {
-  dataplate = filter(dataME, dataME$plateID == item)
-  datalist[[item]] = dataplate
+  platedata = filter(dataME, dataME$plateID == item)
+  platelist[[item]] = platedata
 }
 
-# replace Gene ID with Gene symbol
-#dataME$treatment = mapIds(org.Hs.eg.db, dataME$treatment, 'SYMBOL', 'ENTREZID')
+# for compatibility reasons write dataME into data
+data = dataME
 
 ##################################################
-# visual data exploration
+# data exploration
+##################################################
+# ROI count per plate
+# count dataset rows per plate
+platedata = data %>%
+  group_by(plateID) %>%
+  summarise(ROI_count = length(ROI))
+# plot ROI count per plate
+ggplot(data = platedata, aes(x = plateID, y = ROI_count))+
+  geom_bar(stat = "Identity")+
+  geom_text(aes(label = ROI_count),
+            vjust = -0.5)+
+  scale_y_continuous(labels = label_number(suffix = " K", scale = 1e-3))+
+  theme(axis.title.x = element_blank(),
+        axis.ticks = element_blank())
+
+
+# PLot number of ROIs identified per well for each plate
+# create plotlist that will hold plots
+plotlist = list()
+# set counter
+i = 1
+for (plate in platelist){
+  # load data for one plate
+  platedata = plate
+  # count number of ROIs per well
+  platedata = platedata %>%
+    group_by(wellID) %>%
+    summarise(ROI_count = length(ROI))
+  # convert wellID into coordinates and add to platedata
+  platedata <- mutate(platedata,
+                      Row=as.numeric(match(toupper(substr(wellID, 1, 1)), LETTERS)),
+                      Column=as.numeric(substr(wellID, 2, 5)))
+  # plot plate as heatmap
+plotlist[[i]] =   ggplot(data = platedata, aes(x = Column, y = Row, fill = ROI_count))+
+  geom_tile()+
+  scale_y_reverse(breaks=seq(1, 8), labels=LETTERS[1:8])+
+  scale_x_continuous(position = "top", breaks=seq(1, 12))+
+  theme(axis.title = element_blank(),
+        axis.ticks = element_blank(),
+        axis.line = element_blank())+
+  ggtitle(plate$plateID[1])
+# counter +1
+i = i+1
+}
+# arrange plots
+do.call("grid.arrange", c(plotlist, nrow = 3, ncol=3))
+
+# Intensity histograms per plate
+# normalize intensities using z-score
+data$zc1mean = scale(data$c1mean, center = TRUE, scale = TRUE)
+data$zc2mean = scale(data$c2mean, center = TRUE, scale = TRUE)
+# plot histograms for c1mean
+hist1 = ggplot(data, aes(x = c1mean))+ 
+  geom_histogram(binwidth = 100,
+                 color = "darkgreen", 
+                 fill = "darkgreen")+
+  facet_wrap(~plateID)+
+  scale_y_continuous(labels = label_number(suffix = " K", scale = 1e-3))+
+  scale_x_continuous(labels = label_number(suffix = " K", scale = 1e-3),
+                     limits = c(0,5000), breaks = seq(0,4000,2000))+
+  labs(x="c1mean (Pol II)")+
+  theme_bw()
+# plot histograms for c2mean
+hist2 = ggplot(data, aes(x = c2mean))+ 
+  geom_histogram(binwidth = 100,
+                 color = "darkred", 
+                 fill = "darkred")+
+  facet_wrap(~plateID)+
+  scale_y_continuous(labels = label_number(suffix = " K", scale = 1e-3))+
+  scale_x_continuous(labels = label_number(suffix = " K", scale = 1e-3),
+                     limits = c(0,5000), breaks = seq(0,4000,2000))+
+  labs(x="c2mean (SiR-DNA)")+
+  theme_bw()
+# plot histograms for zc1mean
+hist3 = ggplot(data, aes(x = zc1mean))+ 
+  geom_histogram(binwidth = 1,
+                 color = "darkgreen", 
+                 fill = "darkgreen")+
+  facet_wrap(~plateID)+
+  scale_y_continuous(labels = label_number(suffix = " K", scale = 1e-3))+
+  scale_x_continuous(limits = c(NA,5))+
+  labs(x="zc1mean (Pol II normalized)")+
+  theme_bw()
+# plot histograms for zc2mean
+hist4 = ggplot(data, aes(x = zc2mean))+ 
+  geom_histogram(binwidth = 1,
+                 color = "darkred", 
+                 fill = "darkred")+
+  facet_wrap(~plateID)+
+  scale_y_continuous(labels = label_number(suffix = " K", scale = 1e-3))+
+  scale_x_continuous(limits = c(NA,5))+
+  labs(x="zc2mean (SiR-DNA normalized)")+
+  theme_bw()
+# arrange plots
+grid.arrange(hist1, hist2, hist3, hist4, nrow = 2, ncol = 2)
+
+##################################################
+# analysis
 ##################################################
 
-# histogram: SiR-DNA channel
-ggplot(data = data, aes(x = c2mean)) +
-  geom_histogram(
-    binwidth = 350,
-    aes(y = ..density..),
-    fill = "grey",
-    color = "black"
-  ) +
-  #xlim(NA,5000) +
-  geom_density()
+########################################
+# quality control
+########################################
+# Zhang et al. 1999 (https://doi.org/10.1177/108705719900400206)
 
-# interactive scatter: select co-loc coefficients
-plot_ly(
-  data = data,
-  x = ~ pearson_c1vsc3,
-  y = ~ spearman_c1vsc3,
-  type = "scatter",
-  mode = "markers",
-  color = ~ M1_manders_c1vsc3,
-  hoverinfo = "text",
-  hovertext = paste(
-    "filename:",
-    data$File,
-    "<br>plateID:",
-    data$plateID,
-    "<br>wellID:",
-    data$wellID,
-    "<br>fieldID:",
-    data$fieldID,
-    "<br>ROI:",
-    data$ROI
-  ),
-  hoverlabel = list(bgcolor = "white")
-) %>%
-  layout(showlegend = TRUE,
-         yaxis = list(showline = FALSE))
+# calculate Z'-factor for each plate
 
-# plot data for one plate
-plot_ly(
-  data = dataME,
-  x = ~ treatment,
-  y = ~ pearson_c1vsc3,
-  type = "box",
-  boxpoints = "outlier",
-  jitter = 1,
-  pointpos = 0,
-  notched = TRUE,
-  marker = list(
-    color = "gray",
-    opacity = 1,
-    size = 3
-  ),
-  color = ~ treatment,
-  showlegend = FALSE
-)
+# calculate SSMD for each plate
 
-# plot means
-# create dataframe holding means per group
-# for data of one plate only use: datalist[[plateIDnames[1]]]
-dataMeans = dataME %>%
-  group_by(treatment) %>%
-  summarise(M1_manders_c1vsc3 = mean(M1_manders_c1vsc3, na.rm = TRUE))
-# add column that holds means expressed as z-score
-dataMeans$zScore = scale(dataMeans[2])
-# reorder data based on z-score
-dataMeans$treatment = factor(dataMeans$treatment, levels = dataMeans$treatment[order(dataMeans$zScore)])
-# set color identifier
-dataMeans$color = cut(
-  dataMeans$zScore,
-  breaks = c(-Inf, 1, Inf),
-  labels = c("black", "red")
-)
-# plot raw data + means
-ggplot(dataME, aes(x = treatment, y = M1_manders_c1vsc3)) +
-  geom_jitter(width = 0.25, size = 0.01) +
-  geom_bar(data = dataMeans, stat = "identity", alpha = 0.3) +
-  theme(axis.text.x = element_text(angle = 90,
-                                   
-                                   hjust = 1))
-# plot means as z-score
-ggplot(dataMeans, aes(x = treatment, y = zScore)) +
-  geom_point(color = dataMeans$color) +
-  geom_hline(yintercept = 1) +
-  theme(axis.text.x = element_text(
-    angle = 90,
-    hjust = 1,
-    size = 5
-  ))
+# Plot
 
-# hiytogramm of all coefficients for one sample
-untr = dataME[(dataME$treatment == "untr"),]
-hist(untr$M1_manders_c1vsc3)
-
-plot_ly(data= dataME,
-        x = ~M1_manders_c1vsc3,
-        type = "histogram",
-        color = ~treatment)
-
-nountr = dataME[(!dataME$treatment == "untr"),]
-hist(nountr$M1_manders_c1vsc3)
+########################################
+# hit identification
+########################################
 
 
-# Export data
-#write.table(dataMeans, "res.csv", sep=",", col.names = NA)
+
+
+
+
+
