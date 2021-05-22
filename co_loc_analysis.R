@@ -161,6 +161,7 @@ for (ID in unique(data$plateID)){
 }
 
 # calculate means of co-loc coefficients per treatment combining the entire dataset
+# M2 does weird things!
 results = data %>%
   group_by(treatment) %>%
   summarise(mean_pearson_c1vsc3 = mean(pearson_c1vsc3, na.rm = TRUE),
@@ -170,20 +171,21 @@ results = data %>%
             mean_M2_manders_c3vsc1 = mean(M2_manders_c3vsc1, na.rm = TRUE),
             mean_zc1mean = mean(zc1mean, na.rm = TRUE),
             mean_zc2mean = mean(zc2mean, na.rm = TRUE),
-            # calcuate z-score for all co-loc coefficients
-            zscore_pearson_c1vsc3 = scale(pearson_c1vsc3, center = TRUE, scale = TRUE),
-            zscore_spearman_c1vsc3 = scale(spearman_c1vsc3, center = TRUE, scale = TRUE),
-            zscore_icq_c1vsc3 = scale(icq_c1vsc3, center = TRUE, scale = TRUE),
-            zscore_M1_manders_c1vsc3 = scale(M1_manders_c1vsc3, center = TRUE, scale = TRUE),
-            zscore_M2_manders_c3vsc1 = scale(M2_manders_c3vsc1, center = TRUE, scale = TRUE),
-            # calculate robust z-score for all co-loc coefficients
-            rz_pearson_c1vsc3 = zscore(pearson_c1vsc3, robust = TRUE),
-            rz_spearman_c1vsc3 = zscore(spearman_c1vsc3, robust = TRUE),
-            rz_icq_c1vsc3 = zscore(icq_c1vsc3, robust = TRUE),
-            rz_M1_manders_c1vsc3 = zscore(M1_manders_c1vsc3, robust = TRUE),
-            rz_M2_manders_c3vsc1 = zscore(M2_manders_c3vsc1, robust = TRUE),
             # count how many data points have been available for all the above calculations
             datapoints = length(treatment))
+
+# calculate z-score for all co-loc coefficients
+results$zscore_pearson_c1vsc3 = scale(results$mean_pearson_c1vsc3, center = TRUE, scale = TRUE)
+results$zscore_spearman_c1vsc3 = scale(results$mean_spearman_c1vsc3, center = TRUE, scale = TRUE)
+results$zscore_icq_c1vsc3 = scale(results$mean_icq_c1vsc3, center = TRUE, scale = TRUE)
+results$zscore_M1_manders_c1vsc3 = scale(results$mean_M1_manders_c1vsc3, center = TRUE, scale = TRUE)
+results$zscore_M2_manders_c3vsc1 = scale(results$mean_M2_manders_c3vsc1, center = TRUE, scale = TRUE)
+# calculate robust z-score for all co-loc coefficients       
+results$rz_pearson_c1vsc3 = zscore(results$zscore_pearson_c1vsc3, robust = TRUE)
+results$rz_spearman_c1vsc3 = zscore(results$zscore_spearman_c1vsc3, robust = TRUE)
+results$rz_icq_c1vsc3 = zscore(results$zscore_icq_c1vsc3, robust = TRUE)
+results$rz_M1_manders_c1vsc3 = zscore(results$zscore_M1_manders_c1vsc3, robust = TRUE)
+results$rz_M2_manders_c3vsc1 = zscore(results$zscore_M2_manders_c3vsc1, robust = TRUE)
 
 ########################################
 # data exploration
@@ -297,6 +299,8 @@ grid.arrange(hist1, hist2, hist3, hist4, nrow = 2, ncol = 2)
 ########################################
 
 # plot means per treatment (not sure if that is a good representation)
+# reorder data based on mean_pearson_c1vsc3
+results$treatment = factor(results$treatment, levels = results$treatment[order(results$mean_pearson_c1vsc3)])
 ggplot(data = results)+
   geom_point(aes(x = treatment, y = mean_pearson_c1vsc3), color = "grey")+
   geom_point(aes(x = treatment, y = mean_spearman_c1vsc3), color = "red")+
@@ -314,18 +318,61 @@ ggplot(data = results, aes(x = mean_zc1mean, y = mean_zc2mean))+
   geom_point()
 
 
-# z-score
-
-ggplot(data = results, aes(x = treatment, y = rz_pearson_c1vsc3))+
-  geom_point()+
-  geom_hline(yintercept = 1)+
-  theme(
-    axis.text.x = element_text(angle = 90,
-                               hjust = 1,
-                               size = 7))
+# z-score per co-loc coefficient
+# create plotlist that will hold plots
+plotlist = list()
+# define which coefficients to plot
+coefflist = c("zscore_pearson_c1vsc3", "zscore_spearman_c1vsc3", "zscore_icq_c1vsc3", "zscore_M1_manders_c1vsc3", "zscore_M2_manders_c3vsc1")
+for (coeff in coefflist){
+  # select dataset
+  dataset = results[c("treatment",coeff)]
+  # rename columns
+  colnames(dataset) = c("treatment", "score")
+  
+  # reorder data based on z-score
+  dataset$treatment = factor(dataset$treatment, levels = dataset$treatment[order(dataset$score)])
+  # set color for hits
+  dataset$hitcolor = cut(dataset$score,
+                         breaks = c(-Inf, 1, Inf),
+                         labels = c("black", "red"))
+  # write plot into plotlist
+  plotlist[[coeff]] = ggplot(data = dataset, aes(x = treatment, y = score))+
+    geom_point(color = dataset$hitcolor)+
+    geom_hline(yintercept = 1)+
+    ggtitle(coeff)+
+    theme(axis.text.x = element_blank(),
+          axis.ticks.x = element_blank())
+}
+# arrange plots
+do.call("grid.arrange", c(plotlist, nrow = 2, ncol=3))
 
 # z*-score (robust z-score) 
-
+# create plotlist that will hold plots
+plotlist = list()
+# define which coefficients to plot
+coefflist = c("rz_pearson_c1vsc3", "rz_spearman_c1vsc3", "rz_icq_c1vsc3", "rz_M1_manders_c1vsc3", "rz_M2_manders_c3vsc1")
+for (coeff in coefflist){
+  # select dataset
+  dataset = results[c("treatment",coeff)]
+  # rename columns
+  colnames(dataset) = c("treatment", "score")
+  
+  # reorder data based on z-score
+  dataset$treatment = factor(dataset$treatment, levels = dataset$treatment[order(dataset$score)])
+  # set color for hits
+  dataset$hitcolor = cut(dataset$score,
+                         breaks = c(-Inf, 1, Inf),
+                         labels = c("black", "red"))
+  # write plot into plotlist
+  plotlist[[coeff]] = ggplot(data = dataset, aes(x = treatment, y = score))+
+    geom_point(color = dataset$hitcolor)+
+    geom_hline(yintercept = 1)+
+    ggtitle(coeff)+
+    theme(axis.text.x = element_blank(),
+          axis.ticks.x = element_blank())
+}
+# arrange plots
+do.call("grid.arrange", c(plotlist, nrow = 2, ncol=3))
 
 
 
