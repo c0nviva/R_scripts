@@ -5,6 +5,7 @@
 # Data was pre-sorted by Andreas Ettinger
 # Channel order: PolII, EdU, DNA
 # Data set contains 3x3 plates (triplicates); DNA damage library; EdU positive only; SiR-DNA data not present
+# background substracted dataset
 
 ##################################################
 # install packages
@@ -29,12 +30,19 @@ packages = c("ggplot2", "dplyr", "platetools", "plotly", "gridExtra", "scales")
 # load bioconductor stuff
 # genome wide anotations for human
 library('org.Hs.eg.db')
+# gsea analysis using clusterProfiler
+library('clusterProfiler')
 
 ##################################################
 # settings
 ##################################################
 # set global theme for ggplot2
 theme_set(theme_classic())
+
+# define negative control list
+lneg = c("untr","si008","si009","si001","si010")
+# define positive control list
+lpos = c("ATRi","si002","si003","si004","si011")
 
 ##################################################
 # functions
@@ -58,11 +66,12 @@ zscore <- function(x, robust = FALSE){
 }
 
 # function to calculate z'-factor according to Zhang et al. 1999 (https://doi.org/10.1177/108705719900400206)
-z_factor <- function (x, neg){
-  spc = sd(x)
-  snc = sd(neg)
-  upc = mean(x)
-  unc = mean(neg)
+# for z-factor instead of z'-factor put positive control into x
+zfactor <- function (x, neg){
+  spc = sd(x, na.rm = TRUE)
+  snc = sd(neg,na.rm = TRUE)
+  upc = mean(x, na.rm = TRUE)
+  unc = mean(neg,na.rm = TRUE)
   factor = 1- (3*spc + 3*snc)/abs(upc-unc)
   
   return (factor)
@@ -72,7 +81,7 @@ z_factor <- function (x, neg){
 # stole it from: https://github.com/Swarchal/phenoDist/blob/master/R/ssmd.R
 # a = values
 # b = negative control values
-ssmd <- function (a, b, verbose = TRUE, ...) 
+calc_ssmd <- function (a, b, verbose = TRUE) 
 {
   if (length(a) < 2 | length(b) < 2) {
     stop(call. = FALSE, "Inputs need to be greater at least 2 elements long")
@@ -81,10 +90,10 @@ ssmd <- function (a, b, verbose = TRUE, ...)
     stop(call. = FALSE, "Input needs to be numeric.")
   }
   
-  mu_a <- mean(a, ...)
-  mu_b <- mean(b, ...)
-  var_a <- var(a, ...)
-  var_b <- var(b, ...)
+  mu_a <- mean(a, na.rm=TRUE)
+  mu_b <- mean(b, na.rm=TRUE)
+  var_a <- var(a, na.rm=TRUE)
+  var_b <- var(b, na.rm=TRUE)
   
   # if lengths are equal assume correlation and calculate covariance
   if (length(a) == length(b)) {
@@ -97,10 +106,6 @@ ssmd <- function (a, b, verbose = TRUE, ...)
       warning("a and b have different lengths. Calculations assumed no correlation.",
               call. = FALSE)
     }
-  }
-  
-  if (verbose == TRUE) {
-    ssmd_effect_message(beta)
   }
   
   return(beta)
@@ -138,15 +143,13 @@ dataME$treatment = dataME$temp
 # finally remove temp column
 dataME$temp = NULL
 
-# reorganize data in list, use plateID as sub-category
-plateIDnames = unique(dataME$plateID)
-# initialize datalist
-platelist = list()
-# Fill list
-for (item in plateIDnames) {
-  platedata = filter(dataME, dataME$plateID == item)
-  platelist[[item]] = platedata
-}
+########################################
+# filter
+########################################
+# remove treatments with less then 100 datapoints available
+# currently only works by re-running the script after first run
+remove = results$treatment[results$datapoints < 100]
+dataME = dataME[!dataME$treatment %in% remove,]
 
 # for compatibility reasons write dataME into data
 data = dataME
@@ -158,6 +161,16 @@ data = dataME
 for (ID in unique(data$plateID)){
   data$zc1mean[data$plateID == ID] = scale(data$c1mean[data$plateID == ID], center = TRUE, scale = TRUE)
   data$zc2mean[data$plateID == ID] = scale(data$c2mean[data$plateID == ID], center = TRUE, scale = TRUE)
+}
+
+# reorganize data in list, use plateID as sub-category
+plateIDnames = unique(data$plateID)
+# initialize datalist
+platelist = list()
+# Fill list
+for (item in plateIDnames) {
+  platedata = filter(data, data$plateID == item)
+  platelist[[item]] = platedata
 }
 
 # calculate means of co-loc coefficients per treatment combining the entire dataset
@@ -180,12 +193,22 @@ results$zscore_spearman_c1vsc3 = scale(results$mean_spearman_c1vsc3, center = TR
 results$zscore_icq_c1vsc3 = scale(results$mean_icq_c1vsc3, center = TRUE, scale = TRUE)
 results$zscore_M1_manders_c1vsc3 = scale(results$mean_M1_manders_c1vsc3, center = TRUE, scale = TRUE)
 results$zscore_M2_manders_c3vsc1 = scale(results$mean_M2_manders_c3vsc1, center = TRUE, scale = TRUE)
+results$zscore_zc1mean = scale(results$mean_zc1mean, center = TRUE, scale = TRUE)
+results$zscore_zc2mean = scale(results$mean_zc2mean, center = TRUE, scale = TRUE)
+
 # calculate robust z-score for all co-loc coefficients       
 results$rz_pearson_c1vsc3 = zscore(results$zscore_pearson_c1vsc3, robust = TRUE)
 results$rz_spearman_c1vsc3 = zscore(results$zscore_spearman_c1vsc3, robust = TRUE)
 results$rz_icq_c1vsc3 = zscore(results$zscore_icq_c1vsc3, robust = TRUE)
 results$rz_M1_manders_c1vsc3 = zscore(results$zscore_M1_manders_c1vsc3, robust = TRUE)
 results$rz_M2_manders_c3vsc1 = zscore(results$zscore_M2_manders_c3vsc1, robust = TRUE)
+results$rz_zc1mean = zscore(results$mean_zc1mean, robust = TRUE)
+results$rz_zc2mean = zscore(results$mean_zc2mean, robust = TRUE)
+
+# add information if control
+results$control = "sample"
+results$control[results$treatment %in% lneg] = "neg"
+results$control[results$treatment %in% lpos] = "pos"
 
 ########################################
 # data exploration
@@ -203,7 +226,6 @@ ggplot(data = platedata, aes(x = plateID, y = ROI_count))+
   scale_y_continuous(labels = label_number(suffix = " K", scale = 1e-3))+
   theme(axis.title.x = element_blank(),
         axis.ticks = element_blank())
-
 
 # PLot number of ROIs identified per well for each plate
 # create plotlist that will hold plots
@@ -252,8 +274,8 @@ hist1 = ggplot(data, aes(x = c1mean))+
 # plot histograms for c2mean
 hist2 = ggplot(data, aes(x = c2mean))+ 
   geom_histogram(binwidth = 100,
-                 color = "darkred", 
-                 fill = "darkred")+
+                 color = "darkorange", 
+                 fill = "darkorange")+
   facet_wrap(~plateID)+
   scale_y_continuous(labels = label_number(suffix = " K", scale = 1e-3))+
   scale_x_continuous(labels = label_number(suffix = " K", scale = 1e-3),
@@ -273,8 +295,8 @@ hist3 = ggplot(data, aes(x = zc1mean))+
 # plot histograms for zc2mean
 hist4 = ggplot(data, aes(x = zc2mean))+ 
   geom_histogram(binwidth = 1,
-                 color = "darkred", 
-                 fill = "darkred")+
+                 color = "darkorange", 
+                 fill = "darkorange")+
   facet_wrap(~plateID)+
   scale_y_continuous(labels = label_number(suffix = " K", scale = 1e-3))+
   scale_x_continuous(limits = c(NA,5))+
@@ -288,11 +310,152 @@ grid.arrange(hist1, hist2, hist3, hist4, nrow = 2, ncol = 2)
 ########################################
 # Zhang et al. 1999 (https://doi.org/10.1177/108705719900400206)
 
-# calculate Z'-factor for each plate
-
-# calculate SSMD for each plate
+listmeasurements = c("pearson_c1vsc3", 
+                     "spearman_c1vsc3", 
+                     "icq_c1vsc3", 
+                     "M1_manders_c1vsc3", 
+                     "M2_manders_c3vsc1", 
+                     "c1mean", 
+                     "c2mean")
+# create quality df
+quality = data.frame(matrix(nrow = length(platelist), ncol = length(listmeasurements)*3+1))
+# counter row
+i = 1
+for (plate in platelist) {
+  platedata = plate
+  quality[i,1] = plate$plateID[1]
+  # counter column
+  j = 2
+  for (measurement in listmeasurements){
+    dat = platedata[c("treatment",measurement)]
+    datneg = dat[dat$treatment %in% lneg,]
+    datpos = dat[dat$treatment %in% lpos,]
+    # calculate Z'-factor for each plate
+    # takes into account pos and neg control
+    z_f = zfactor(datpos[,2], datneg[,2])
+    # calculate Z-factor for each plate
+    # sample vs neg control subdataset
+    zf = zfactor(dat[,2], datneg[,2])
+    # calculate SSMD for each plate using negative control data
+    ssmd = calc_ssmd(dat[,2], datneg[,2])
+    # write into quality df
+    quality[i,j:(j+2)] = c(z_f,zf,ssmd)
+    j = j+3
+  }
+  i = i+1
+}
 
 # Plot
+# loop was not working for some reason that i could not figure out :(
+titlelist = c("z'-factor", "z-factor", "ssmd")
+
+# set t
+t = 1
+# get title
+title = titlelist[t]
+# plot for intensities
+plt1 = ggplot(data = quality)+
+  # some hardcoded positions that i need to change
+  geom_point(aes(x = quality[,1], y = quality[,2+3*5], color = "c1mean (Pol II)"))+
+  geom_point(aes(x = quality[,1], y = quality[,2+3*6], color = "c2mean (EdU)"))+
+  scale_color_manual(values = c("darkgreen", "darkorange"))+
+  labs(y=title)+
+  ggtitle(title)+
+  theme(axis.title.x = element_blank(),
+        legend.title = element_blank(),
+        axis.text.x= element_text(angle = 90,
+                                  hjust = 1,
+                                  size = 7))
+
+  # plot for coefficients
+  plt2 = ggplot(data = quality)+
+    # some hardcoded positions that i need to change
+    geom_point(aes(x = quality[,1], y = quality[,2], color = "pearson"))+
+    geom_point(aes(x = quality[,1], y = quality[,2+3], color = "spearman"))+
+    geom_point(aes(x = quality[,1], y = quality[,2+3*2], color = "ICQ"))+
+    geom_point(aes(x = quality[,1], y = quality[,2+3*3], color = "M1"))+
+    geom_point(aes(x = quality[,1], y = quality[,2+3*4], color = "M2"))+
+    scale_color_manual(values = c("grey", "red", "blue", "green", "black"))+
+    labs(y=title)+
+    ggtitle(title)+
+    theme(axis.title.x = element_blank(),
+          legend.title = element_blank(),
+          axis.text.x= element_text(angle = 90,
+                                    hjust = 1,
+                                    size = 7))
+  
+  # set t
+  t = 2
+  # get title
+  title = titlelist[t]
+  # plot for intensities
+  plt3 = ggplot(data = quality)+
+    # some hardcoded positions that i need to change
+    geom_point(aes(x = quality[,1], y = quality[,3+3*5], color = "c1mean (Pol II)"))+
+    geom_point(aes(x = quality[,1], y = quality[,3+3*6], color = "c2mean (EdU)"))+
+    scale_color_manual(values = c("darkgreen", "darkorange"))+
+    labs(y=title)+
+    ggtitle(title)+
+    theme(axis.title.x = element_blank(),
+          legend.title = element_blank(),
+          axis.text.x= element_text(angle = 90,
+                                    hjust = 1,
+                                    size = 7))
+  
+  # plot for coefficients
+  plt4 = ggplot(data = quality)+
+    # some hardcoded positions that i need to change
+    geom_point(aes(x = quality[,1], y = quality[,3], color = "pearson"))+
+    geom_point(aes(x = quality[,1], y = quality[,3+3], color = "spearman"))+
+    geom_point(aes(x = quality[,1], y = quality[,3+3*2], color = "ICQ"))+
+    geom_point(aes(x = quality[,1], y = quality[,3+3*3], color = "M1"))+
+    geom_point(aes(x = quality[,1], y = quality[,3+3*4], color = "M2"))+
+    scale_color_manual(values = c("grey", "red", "blue", "green", "black"))+
+    labs(y=title)+
+    ggtitle(title)+
+    theme(axis.title.x = element_blank(),
+          legend.title = element_blank(),
+          axis.text.x= element_text(angle = 90,
+                                    hjust = 1,
+                                    size = 7))
+  
+  # set t
+  t = 3
+  # get title
+  title = titlelist[t]
+  # plot for intensities
+  plt5 = ggplot(data = quality)+
+    # some hardcoded positions that i need to change
+    geom_point(aes(x = quality[,1], y = quality[,4+3*5], color = "c1mean (Pol II)"))+
+    geom_point(aes(x = quality[,1], y = quality[,4+3*6], color = "c2mean (EdU)"))+
+    scale_color_manual(values = c("darkgreen", "darkorange"))+
+    labs(y=title)+
+    ggtitle(title)+
+    theme(axis.title.x = element_blank(),
+          legend.title = element_blank(),
+          axis.text.x= element_text(angle = 90,
+                                    hjust = 1,
+                                    size = 7))
+  
+  # plot for coefficients
+  plt6 = ggplot(data = quality)+
+    # some hardcoded positions that i need to change
+    geom_point(aes(x = quality[,1], y = quality[,4], color = "pearson"))+
+    geom_point(aes(x = quality[,1], y = quality[,4+3], color = "spearman"))+
+    geom_point(aes(x = quality[,1], y = quality[,4+3*2], color = "ICQ"))+
+    geom_point(aes(x = quality[,1], y = quality[,4+3*3], color = "M1"))+
+    geom_point(aes(x = quality[,1], y = quality[,4+3*4], color = "M2"))+
+    scale_color_manual(values = c("grey", "red", "blue", "green", "black"))+
+    labs(y=title)+
+    ggtitle(title)+
+    theme(axis.title.x = element_blank(),
+          legend.title = element_blank(),
+          axis.text.x= element_text(angle = 90,
+                                    hjust = 1,
+                                    size = 7))
+
+# loop was not working hence this weird solution emerged
+  grid.arrange(plt1, plt3, plt5, plt2, plt4, plt6, nrow = 2, ncol = 3)
 
 ########################################
 # hit identification
@@ -302,27 +465,29 @@ grid.arrange(hist1, hist2, hist3, hist4, nrow = 2, ncol = 2)
 # reorder data based on mean_pearson_c1vsc3
 results$treatment = factor(results$treatment, levels = results$treatment[order(results$mean_pearson_c1vsc3)])
 ggplot(data = results)+
-  geom_point(aes(x = treatment, y = mean_pearson_c1vsc3), color = "grey")+
-  geom_point(aes(x = treatment, y = mean_spearman_c1vsc3), color = "red")+
-  geom_point(aes(x = treatment, y = mean_icq_c1vsc3), color = "blue")+
-  geom_point(aes(x = treatment, y = mean_M1_manders_c1vsc3), color = "green")+
-  geom_point(aes(x = treatment, y = mean_M2_manders_c3vsc1), color = "darkgreen")+
+  geom_point(aes(x = treatment, y = mean_pearson_c1vsc3, color = "pearson"))+
+  geom_point(aes(x = treatment, y = mean_spearman_c1vsc3, color = "spearman"))+
+  geom_point(aes(x = treatment, y = mean_icq_c1vsc3, color = "ICQ"))+
+  geom_point(aes(x = treatment, y = mean_M1_manders_c1vsc3, color = "M1"))+
+  geom_point(aes(x = treatment, y = mean_M2_manders_c3vsc1, color = "M2"))+
+  scale_color_manual(values = c("grey", "red", "blue", "green", "black"))+
   labs(y = "mean Co-loc coefficient")+
-  theme(
+  theme(legend.title = element_blank(),
     axis.text.x= element_text(angle = 90,
                               hjust = 1,
                               size = 7))
 
 # plot normalized PolII int vs normalized EdU int, entire dataset
-ggplot(data = results, aes(x = mean_zc1mean, y = mean_zc2mean))+
-  geom_point()
+ggplot(data = results, aes(x = mean_zc1mean, y = mean_zc2mean, color = control))+
+  geom_point()+
+  scale_color_manual(values = c("black", "orange", "grey"))
 
 
 # z-score per co-loc coefficient
 # create plotlist that will hold plots
 plotlist = list()
 # define which coefficients to plot
-coefflist = c("zscore_pearson_c1vsc3", "zscore_spearman_c1vsc3", "zscore_icq_c1vsc3", "zscore_M1_manders_c1vsc3", "zscore_M2_manders_c3vsc1")
+coefflist = c("zscore_pearson_c1vsc3", "zscore_spearman_c1vsc3", "zscore_icq_c1vsc3", "zscore_M1_manders_c1vsc3", "zscore_M2_manders_c3vsc1", "zscore_zc1mean", "zscore_zc2mean")
 for (coeff in coefflist){
   # select dataset
   dataset = results[c("treatment",coeff)]
@@ -344,13 +509,13 @@ for (coeff in coefflist){
           axis.ticks.x = element_blank())
 }
 # arrange plots
-do.call("grid.arrange", c(plotlist, nrow = 2, ncol=3))
+do.call("grid.arrange", c(plotlist, nrow = 2, ncol=4))
 
 # z*-score (robust z-score) 
 # create plotlist that will hold plots
 plotlist = list()
 # define which coefficients to plot
-coefflist = c("rz_pearson_c1vsc3", "rz_spearman_c1vsc3", "rz_icq_c1vsc3", "rz_M1_manders_c1vsc3", "rz_M2_manders_c3vsc1")
+coefflist = c("rz_pearson_c1vsc3", "rz_spearman_c1vsc3", "rz_icq_c1vsc3", "rz_M1_manders_c1vsc3", "rz_M2_manders_c3vsc1", "rz_zc1mean", "rz_zc2mean")
 for (coeff in coefflist){
   # select dataset
   dataset = results[c("treatment",coeff)]
@@ -372,10 +537,48 @@ for (coeff in coefflist){
           axis.ticks.x = element_blank())
 }
 # arrange plots
-do.call("grid.arrange", c(plotlist, nrow = 2, ncol=3))
+do.call("grid.arrange", c(plotlist, nrow = 2, ncol=4))
 
 
+# reorder data based on mean_pearson_c1vsc3
+results$treatment = factor(results$treatment, levels = results$treatment[order(results$rz_pearson_c1vsc3)])
+ggplot(data = results)+
+  geom_point(aes(x = treatment, y = rz_pearson_c1vsc3, color = "pearson"))+
+  geom_point(aes(x = treatment, y = rz_spearman_c1vsc3, color = "spearman"))+
+  geom_point(aes(x = treatment, y = rz_icq_c1vsc3, color = "ICQ"))+
+  geom_point(aes(x = treatment, y = rz_M1_manders_c1vsc3, color = "M1"))+
+  geom_point(aes(x = treatment, y = rz_M2_manders_c3vsc1, color = "M2"))+
+  geom_hline(yintercept = 1)+
+  scale_color_manual(values = c("grey", "red", "blue", "green", "black"))+
+  labs(y = "z*-score")+
+  #ylim(1,NA)+
+  theme(legend.title = element_blank(),
+        axis.text.x= element_text(angle = 90,
+                                  hjust = 1,
+                                  size = 7))
 
 
+# gene set enrichtment anaylsis (GSEA)
+# following this tutorial: https://learn.gencore.bio.nyu.edu/rna-seq-analysis/gene-set-enrichment-analysis/
+# prepare vector using robust z-score for:
+original_gene_list = results$rz_spearman_c1vsc3
+# name vector
+names(original_gene_list) = results$treatment
+# omit any NA values 
+gene_list<-na.omit(original_gene_list)
+# sort the list in decreasing order (required for clusterProfiler)
+gene_list = sort(gene_list, decreasing = TRUE)
 
+gse <- gseGO(geneList=gene_list, 
+             ont ="ALL", 
+             keyType = "SYMBOL", 
+             nPerm = 10000, # higher number makes it more accurate (default was 10000)
+             minGSSize = 3, 
+             maxGSSize = 800, 
+             pvalueCutoff = 0.05, 
+             verbose = TRUE, 
+             OrgDb = org.Hs.eg.db, 
+             pAdjustMethod = "none")
+
+gseaplot(gse, by = "all", title = gse$Description[1], geneSetID = 1)
 
