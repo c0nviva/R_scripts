@@ -32,6 +32,9 @@ packages = c("ggplot2", "dplyr", "platetools", "plotly", "gridExtra", "scales")
 library('org.Hs.eg.db')
 # gsea analysis using clusterProfiler
 library('clusterProfiler')
+# load topGO from bioconductor
+# https://bioconductor.org/packages/release/bioc/vignettes/topGO/inst/doc/topGO.pdf
+library('topGO')
 
 ##################################################
 # settings
@@ -162,6 +165,12 @@ for (ID in unique(data$plateID)){
   data$zc1mean[data$plateID == ID] = scale(data$c1mean[data$plateID == ID], center = TRUE, scale = TRUE)
   data$zc2mean[data$plateID == ID] = scale(data$c2mean[data$plateID == ID], center = TRUE, scale = TRUE)
 }
+
+# add column to data holding information about control status
+data$control = "sample"
+data$control[data$treatment %in% lneg] = "neg"
+data$control[data$treatment %in% lpos] = "pos"
+
 
 # reorganize data in list, use plateID as sub-category
 plateIDnames = unique(data$plateID)
@@ -455,7 +464,7 @@ plt1 = ggplot(data = quality)+
                                     size = 7))
 
 # loop was not working hence this weird solution emerged
-  grid.arrange(plt1, plt3, plt5, plt2, plt4, plt6, nrow = 2, ncol = 3)
+grid.arrange(plt1, plt3, plt5, plt2, plt4, plt6, nrow = 2, ncol = 3)
 
 ########################################
 # hit identification
@@ -481,6 +490,38 @@ ggplot(data = results)+
 ggplot(data = results, aes(x = mean_zc1mean, y = mean_zc2mean, color = control))+
   geom_point()+
   scale_color_manual(values = c("black", "orange", "grey"))
+
+
+# get data
+dat = data[,c("treatment", "zc1mean", "control")]
+# remove NA values
+dat = na.omit(dat)
+# reorder data based on mean intensity per treatment
+dat$treatment = reorder(dat$treatment, dat$zc1mean, median)
+# plot normalized intensity means, ranked
+box1 =ggplot(data = dat, aes(x = treatment, y = zc1mean, color = control))+
+  geom_boxplot(outlier.shape = NA)+
+  ylim(NA,5)+
+  scale_color_manual(values = c("black", "orange", "grey"))+
+  theme(axis.text.x= element_blank(),
+        axis.ticks = element_blank())
+  
+# get data
+dat = data[,c("treatment", "zc2mean", "control")]
+# remove NA values
+dat = na.omit(dat)
+# reorder data based on mean intensity per treatment
+dat$treatment = reorder(dat$treatment, dat$zc2mean, median)
+# plot normalized intensity means, ranked
+box2 =ggplot(data = dat, aes(x = treatment, y = zc2mean, color = control))+
+  geom_boxplot(outlier.shape = NA)+
+  ylim(NA,5)+
+  scale_color_manual(values = c("black", "orange", "grey"))+
+  theme(axis.text.x= element_blank(),
+        axis.ticks = element_blank())
+
+# plot the two boxplots
+grid.arrange(box1, box2, nrow = 1, ncol = 2)
 
 
 # z-score per co-loc coefficient
@@ -558,7 +599,7 @@ ggplot(data = results)+
                                   size = 7))
 
 
-# gene set enrichtment anaylsis (GSEA)
+# gene set enrichment anaylsis (GSEA)
 # following this tutorial: https://learn.gencore.bio.nyu.edu/rna-seq-analysis/gene-set-enrichment-analysis/
 # prepare vector using robust z-score for:
 original_gene_list = results$rz_spearman_c1vsc3
@@ -572,7 +613,7 @@ gene_list = sort(gene_list, decreasing = TRUE)
 gse <- gseGO(geneList=gene_list, 
              ont ="ALL", 
              keyType = "SYMBOL", 
-             nPerm = 10000, # higher number makes it more accurate (default was 10000)
+             nPerm = 100, # higher number makes it more accurate (default was 10000)
              minGSSize = 3, 
              maxGSSize = 800, 
              pvalueCutoff = 0.05, 
@@ -581,4 +622,41 @@ gse <- gseGO(geneList=gene_list,
              pAdjustMethod = "none")
 
 gseaplot(gse, by = "all", title = gse$Description[1], geneSetID = 1)
+
+
+# go-term analysis
+
+# create topGOdata object
+# ontology:
+# BP biological process
+# MF molecular function
+# CC celular component
+
+# quick function for filtering data
+filterthresh <- function(x, thresh =1){
+  out = x[x >= thresh]
+  return(out)
+}
+
+GOdata <- new("topGOdata",
+              ontology = "MF",
+              allGenes = gene_list,
+              geneSel = filterthresh,
+              nodeSize = 10,
+              mapping = 'org.Hs.eg.db',
+              ID = "symbol",
+              annot = annFUN.org)
+
+
+
+
+
+
+
+
+
+
+
+# Export data
+#write.table(results, "analysis.csv", sep=",", col.names = NA)
 
