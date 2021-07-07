@@ -3,7 +3,7 @@
 ##################################################
 
 # define variable: PicturesPerWell
-PicturesPerWell = 45
+PicturesPerWell = 74
 
 ##################################################
 # install packages

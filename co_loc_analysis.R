@@ -20,7 +20,7 @@
 }
 
 # list of packages you want to install/use
-packages = c("ggplot2", "dplyr", "platetools", "plotly", "gridExtra", "scales")
+packages = c("ggplot2", "dplyr", "platetools", "plotly", "gridExtra", "scales", "goseq")
 
 # install and load packages
 .ipak(packages)
@@ -32,9 +32,7 @@ packages = c("ggplot2", "dplyr", "platetools", "plotly", "gridExtra", "scales")
 library('org.Hs.eg.db')
 # gsea analysis using clusterProfiler
 library('clusterProfiler')
-# load topGO from bioconductor
-# https://bioconductor.org/packages/release/bioc/vignettes/topGO/inst/doc/topGO.pdf
-library('topGO')
+
 
 ##################################################
 # settings
@@ -133,9 +131,11 @@ dataME = read.table(filepathdataME,
                     sep = ",",
                     header = TRUE)
 
+
 ##################################################
 # data preparation
 ##################################################
+# save entrezIDs into separate column
 # replace Gene ID with Gene symbol
 # non ENTREZID will result in NA value
 dataME$temp = mapIds(org.Hs.eg.db, keys = dataME$treatment, column = 'SYMBOL', keytype = 'ENTREZID')
@@ -186,31 +186,31 @@ for (item in plateIDnames) {
 # M2 does weird things!
 results = data %>%
   group_by(treatment) %>%
-  summarise(mean_pearson_c1vsc3 = mean(pearson_c1vsc3, na.rm = TRUE),
-            mean_spearman_c1vsc3 = mean(spearman_c1vsc3, na.rm = TRUE),
-            mean_icq_c1vsc3 = mean(icq_c1vsc3, na.rm = TRUE),
-            mean_M1_manders_c1vsc3 = mean(M1_manders_c1vsc3, na.rm = TRUE),
-            mean_M2_manders_c3vsc1 = mean(M2_manders_c3vsc1, na.rm = TRUE),
+  summarise(mean_pearson_c1vsc2 = mean(pearson_c1vsc2, na.rm = TRUE),
+            mean_spearman_c1vsc2 = mean(spearman_c1vsc2, na.rm = TRUE),
+            mean_icq_c1vsc2 = mean(icq_c1vsc2, na.rm = TRUE),
+            mean_M1_manders_c1vsc2 = mean(M1_manders_c1vsc2, na.rm = TRUE),
+            mean_M2_manders_c2vsc1 = mean(M2_manders_c2vsc1, na.rm = TRUE),
             mean_zc1mean = mean(zc1mean, na.rm = TRUE),
             mean_zc2mean = mean(zc2mean, na.rm = TRUE),
             # count how many data points have been available for all the above calculations
             datapoints = length(treatment))
 
 # calculate z-score for all co-loc coefficients
-results$zscore_pearson_c1vsc3 = scale(results$mean_pearson_c1vsc3, center = TRUE, scale = TRUE)
-results$zscore_spearman_c1vsc3 = scale(results$mean_spearman_c1vsc3, center = TRUE, scale = TRUE)
-results$zscore_icq_c1vsc3 = scale(results$mean_icq_c1vsc3, center = TRUE, scale = TRUE)
-results$zscore_M1_manders_c1vsc3 = scale(results$mean_M1_manders_c1vsc3, center = TRUE, scale = TRUE)
-results$zscore_M2_manders_c3vsc1 = scale(results$mean_M2_manders_c3vsc1, center = TRUE, scale = TRUE)
+results$zscore_pearson_c1vsc2 = scale(results$mean_pearson_c1vsc2, center = TRUE, scale = TRUE)
+results$zscore_spearman_c1vsc2 = scale(results$mean_spearman_c1vsc2, center = TRUE, scale = TRUE)
+results$zscore_icq_c1vsc2 = scale(results$mean_icq_c1vsc2, center = TRUE, scale = TRUE)
+results$zscore_M1_manders_c1vsc2 = scale(results$mean_M1_manders_c1vsc2, center = TRUE, scale = TRUE)
+results$zscore_M2_manders_c2vsc1 = scale(results$mean_M2_manders_c2vsc1, center = TRUE, scale = TRUE)
 results$zscore_zc1mean = scale(results$mean_zc1mean, center = TRUE, scale = TRUE)
 results$zscore_zc2mean = scale(results$mean_zc2mean, center = TRUE, scale = TRUE)
 
 # calculate robust z-score for all co-loc coefficients       
-results$rz_pearson_c1vsc3 = zscore(results$zscore_pearson_c1vsc3, robust = TRUE)
-results$rz_spearman_c1vsc3 = zscore(results$zscore_spearman_c1vsc3, robust = TRUE)
-results$rz_icq_c1vsc3 = zscore(results$zscore_icq_c1vsc3, robust = TRUE)
-results$rz_M1_manders_c1vsc3 = zscore(results$zscore_M1_manders_c1vsc3, robust = TRUE)
-results$rz_M2_manders_c3vsc1 = zscore(results$zscore_M2_manders_c3vsc1, robust = TRUE)
+results$rz_pearson_c1vsc2 = zscore(results$zscore_pearson_c1vsc2, robust = TRUE)
+results$rz_spearman_c1vsc2 = zscore(results$zscore_spearman_c1vsc2, robust = TRUE)
+results$rz_icq_c1vsc2 = zscore(results$zscore_icq_c1vsc2, robust = TRUE)
+results$rz_M1_manders_c1vsc2 = zscore(results$zscore_M1_manders_c1vsc2, robust = TRUE)
+results$rz_M2_manders_c2vsc1 = zscore(results$zscore_M2_manders_c2vsc1, robust = TRUE)
 results$rz_zc1mean = zscore(results$mean_zc1mean, robust = TRUE)
 results$rz_zc2mean = zscore(results$mean_zc2mean, robust = TRUE)
 
@@ -319,11 +319,11 @@ grid.arrange(hist1, hist2, hist3, hist4, nrow = 2, ncol = 2)
 ########################################
 # Zhang et al. 1999 (https://doi.org/10.1177/108705719900400206)
 
-listmeasurements = c("pearson_c1vsc3", 
-                     "spearman_c1vsc3", 
-                     "icq_c1vsc3", 
-                     "M1_manders_c1vsc3", 
-                     "M2_manders_c3vsc1", 
+listmeasurements = c("pearson_c1vsc2", 
+                     "spearman_c1vsc2", 
+                     "icq_c1vsc2", 
+                     "M1_manders_c1vsc2", 
+                     "M2_manders_c2vsc1", 
                      "c1mean", 
                      "c2mean")
 # create quality df
@@ -471,14 +471,14 @@ grid.arrange(plt1, plt3, plt5, plt2, plt4, plt6, nrow = 2, ncol = 3)
 ########################################
 
 # plot means per treatment (not sure if that is a good representation)
-# reorder data based on mean_pearson_c1vsc3
-results$treatment = factor(results$treatment, levels = results$treatment[order(results$mean_pearson_c1vsc3)])
+# reorder data based on mean_pearson_c1vsc2
+results$treatment = factor(results$treatment, levels = results$treatment[order(results$mean_pearson_c1vsc2)])
 ggplot(data = results)+
-  geom_point(aes(x = treatment, y = mean_pearson_c1vsc3, color = "pearson"))+
-  geom_point(aes(x = treatment, y = mean_spearman_c1vsc3, color = "spearman"))+
-  geom_point(aes(x = treatment, y = mean_icq_c1vsc3, color = "ICQ"))+
-  geom_point(aes(x = treatment, y = mean_M1_manders_c1vsc3, color = "M1"))+
-  geom_point(aes(x = treatment, y = mean_M2_manders_c3vsc1, color = "M2"))+
+  geom_point(aes(x = treatment, y = mean_pearson_c1vsc2, color = "pearson"))+
+  geom_point(aes(x = treatment, y = mean_spearman_c1vsc2, color = "spearman"))+
+  geom_point(aes(x = treatment, y = mean_icq_c1vsc2, color = "ICQ"))+
+  geom_point(aes(x = treatment, y = mean_M1_manders_c1vsc2, color = "M1"))+
+  geom_point(aes(x = treatment, y = mean_M2_manders_c2vsc1, color = "M2"))+
   scale_color_manual(values = c("grey", "red", "blue", "green", "black"))+
   labs(y = "mean Co-loc coefficient")+
   theme(legend.title = element_blank(),
@@ -528,7 +528,7 @@ grid.arrange(box1, box2, nrow = 1, ncol = 2)
 # create plotlist that will hold plots
 plotlist = list()
 # define which coefficients to plot
-coefflist = c("zscore_pearson_c1vsc3", "zscore_spearman_c1vsc3", "zscore_icq_c1vsc3", "zscore_M1_manders_c1vsc3", "zscore_M2_manders_c3vsc1", "zscore_zc1mean", "zscore_zc2mean")
+coefflist = c("zscore_pearson_c1vsc2", "zscore_spearman_c1vsc2", "zscore_icq_c1vsc2", "zscore_M1_manders_c1vsc2", "zscore_M2_manders_c2vsc1", "zscore_zc1mean", "zscore_zc2mean")
 for (coeff in coefflist){
   # select dataset
   dataset = results[c("treatment",coeff)]
@@ -556,7 +556,7 @@ do.call("grid.arrange", c(plotlist, nrow = 2, ncol=4))
 # create plotlist that will hold plots
 plotlist = list()
 # define which coefficients to plot
-coefflist = c("rz_pearson_c1vsc3", "rz_spearman_c1vsc3", "rz_icq_c1vsc3", "rz_M1_manders_c1vsc3", "rz_M2_manders_c3vsc1", "rz_zc1mean", "rz_zc2mean")
+coefflist = c("rz_pearson_c1vsc2", "rz_spearman_c1vsc2", "rz_icq_c1vsc2", "rz_M1_manders_c1vsc2", "rz_M2_manders_c2vsc1", "rz_zc1mean", "rz_zc2mean")
 for (coeff in coefflist){
   # select dataset
   dataset = results[c("treatment",coeff)]
@@ -581,14 +581,14 @@ for (coeff in coefflist){
 do.call("grid.arrange", c(plotlist, nrow = 2, ncol=4))
 
 
-# reorder data based on mean_pearson_c1vsc3
-results$treatment = factor(results$treatment, levels = results$treatment[order(results$rz_pearson_c1vsc3)])
+# reorder data based on mean_pearson_c1vsc2
+results$treatment = factor(results$treatment, levels = results$treatment[order(results$rz_pearson_c1vsc2)])
 ggplot(data = results)+
-  geom_point(aes(x = treatment, y = rz_pearson_c1vsc3, color = "pearson"))+
-  geom_point(aes(x = treatment, y = rz_spearman_c1vsc3, color = "spearman"))+
-  geom_point(aes(x = treatment, y = rz_icq_c1vsc3, color = "ICQ"))+
-  geom_point(aes(x = treatment, y = rz_M1_manders_c1vsc3, color = "M1"))+
-  geom_point(aes(x = treatment, y = rz_M2_manders_c3vsc1, color = "M2"))+
+  geom_point(aes(x = treatment, y = rz_pearson_c1vsc2, color = "pearson"))+
+  geom_point(aes(x = treatment, y = rz_spearman_c1vsc2, color = "spearman"))+
+  geom_point(aes(x = treatment, y = rz_icq_c1vsc2, color = "ICQ"))+
+  geom_point(aes(x = treatment, y = rz_M1_manders_c1vsc2, color = "M1"))+
+  geom_point(aes(x = treatment, y = rz_M2_manders_c2vsc1, color = "M2"))+
   geom_hline(yintercept = 1)+
   scale_color_manual(values = c("grey", "red", "blue", "green", "black"))+
   labs(y = "z*-score")+
@@ -602,7 +602,7 @@ ggplot(data = results)+
 # gene set enrichment anaylsis (GSEA)
 # following this tutorial: https://learn.gencore.bio.nyu.edu/rna-seq-analysis/gene-set-enrichment-analysis/
 # prepare vector using robust z-score for:
-original_gene_list = results$rz_spearman_c1vsc3
+original_gene_list = results$rz_spearman_c1vsc2
 # name vector
 names(original_gene_list) = results$treatment
 # omit any NA values 
@@ -630,27 +630,34 @@ gseaplot(gse, by = "all", title = gse$Description[1], geneSetID = 1)
 # ontology:
 # BP biological process
 # MF molecular function
-# CC celular component
-
-# quick function for filtering data
-filterthresh <- function(x, thresh =1){
-  out = x[x >= thresh]
-  return(out)
-}
-
-GOdata <- new("topGOdata",
-              ontology = "MF",
-              allGenes = gene_list,
-              geneSel = filterthresh,
-              nodeSize = 10,
-              mapping = 'org.Hs.eg.db',
-              ID = "symbol",
-              annot = annFUN.org)
+# CC cellular component
 
 
 
 
+# load the library
+library("biomaRt")
 
+# I prefer ensembl so that the one I will query, but you can
+# query other bases, try out: listMarts() 
+ensembl=useMart("ensembl")
+
+# as it seems that you are looking for human genes:
+ensembl = useDataset("hsapiens_gene_ensembl",mart=ensembl)
+# if you want other model organisms have a look at:
+#listDatasets(ensembl)
+filters = listFilters(ensembl)
+
+
+goids = getBM(
+  
+  #you want entrezgene so you know which is what, the GO ID and
+  # name_1006 is actually the identifier of 'Go term name'
+  attributes=c('entrezgene','go_id', 'name_1006'), 
+  
+  filters='entrezgene', 
+  values=results$treatment, 
+  mart=ensembl)
 
 
 

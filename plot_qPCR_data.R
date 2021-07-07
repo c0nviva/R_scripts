@@ -56,7 +56,7 @@ filename <- gsub("\\..*","",filename)
 # make sure that sample or target names do not contain spaces
 # skip first two rows of file
 # also, set "Invalid" entries as "NA"
-data <-  read.table(filepath, quote = "", sep = "", skip = 2, fill=TRUE, na.strings = "Invalid")
+data <-  read.table(filepath, quote = "", sep = "\t", skip = 2, fill=TRUE, na.strings = "Invalid")
 
 ########################################
 # data preparation/ clean up
@@ -129,7 +129,7 @@ ggplot(data, aes(V3, V10)) +
 #  annotation_logticks(base=10, sides="l", scaled = TRUE, size = 1)+
   facet_wrap( ~ V4,scales = "free") + 
   theme_mt()+
-  #ylim(-0.001,500)+
+#  ylim(-0.001,7000)+
   theme(axis.text.x=element_text(angle=45,hjust=1),
         legend.position="NONE",
         axis.title.x=element_blank(),
@@ -141,5 +141,6 @@ ggplot(data, aes(V3, V10)) +
 View(data)
 
 # save figure in working directory
-#ggsave(paste(filename,"",".png",sep=""))
+#ggsave(paste(filename,"",".png",sep=""), height = 10, units = "cm")
+#write.table(data, "res.csv", sep=",", col.names = NA)
 
